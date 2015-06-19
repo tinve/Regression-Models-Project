@@ -1,0 +1,96 @@
+---
+title: "Regression Models Project"
+author: "Galina Malovichko"
+date: "06/18/2015"
+output:
+  pdf_document
+---
+  
+## Summary  
+In this report, we analyze `mtcars` data set and use different variables to build linear regression model of miles per gallon (MPG). We are mostly interested in how automatic (`am = 0`) and manual (`am = 1`) transmissions features affect the `mpg` feature. Best model aquired includes `am`, `wt` and `qsec` as variables and accounts for 88% of MPG variance.
+
+## Exploratory Data Analysis  
+First, we load the data set `mtcars` and convert some variables into `factor` class.   
+```{r, echo = FALSE}
+# library(ggplot2)
+data(mtcars)
+head(mtcars, n = 3)
+mtcars$cyl <- as.factor(mtcars$cyl)
+mtcars$vs <- as.factor(mtcars$vs)
+mtcars$am <- factor(mtcars$am)
+mtcars$gear <- factor(mtcars$gear)
+mtcars$carb <- factor(mtcars$carb)
+attach(mtcars)
+```   
+
+Then we create a box plot of MPG values depending on the transmission type (see Figure 1 in the Appendix). At the first glance it seems that manual transmission yields higher MPGs. Pair plot (Figure 2) shows that some other variables, such as `cyl`, `disp`, `hp`, `drat`, `wp` and `vs` strongly correlate with MPG, so might also be predictors.
+
+## Regression Models
+For the first model, we neglect all variables except transmission and build a linear model of MPG agains this single variable.
+```{r, results='hide'}
+model.one <- lm(mpg ~ am, data = mtcars)
+summary(model.one) 
+```  
+Transmission accounts for 34% of MPG variance. The intercept and slope coefficients show that automatic transmissions has average MPG of 17.147, and that manual transmissions have average MPG 17.147 + 7.245 = 24.39. As expected, these values match means in the ox plot from Figure 1. Both coefficient have significance 0.001.
+Residual standard error is 4.902 on 30 degrees of freedom.
+
+Next naive model is a linear regression of `mpg` vs all the other variables.
+```{r, results='hide'}
+model.all <- lm(mpg ~ ., data = mtcars)
+summary(model.all)
+```  
+This model accounts for 78% of MPG variance. Residual standard error is 2.833 on 15 degrees of freedom, but none of the coefficients have significance level of 0.05 or higher.  
+
+Now we want to use backward selection to select only statistically significant variables.  
+```{r, results='hide'}
+model.step <- step(model.all, k = log(nrow(mtcars)))
+summary(model.step)
+```  
+This model has formula `mpg ~ wt + qsec + am`. Its residual standard error is 2.459 on 28 degrees of freedom and it explains about 83% of MPG variance. All of the slope coefficients are significant at 0.05 or 0.001 level.    
+
+Going back to pair plots in Figure 2 from the appendix, we can inspect the correlations between these three significant variables. Pairs `wt` and `qsec`, `qsec` and `am` seem to be uncorrelated, but there is a relationship between `wt` and `am`: automatic cars tend to be heavier on average. To improve our model, we will add the interaction term between these two variables: 
+```{r, results='hide'}
+model.best <- lm(mpg ~ wt + qsec + am + wt:am, data = mtcars)
+summary(model.best) 
+```  
+This model accounts for 88% of MPG variance and has the residual standard error as 2.084 on 27 degrees of freedom.  All of the coefficients are significant at 0.05 significant level. This model seems best so far. 
+
+Here is model comparison with `anova`.  
+```{r, results='hide'}
+anova(model.one, model.all, model.step, model.best) 
+```  
+Model `mpg ~ wt + qsec + am + wt:am` has the least resiual sum of squares. 
+
+```{r}
+summary(model.best)$coef
+```  
+From the model coefficients we can see that if `wt` (weight) and `qsec` (1/4 mile time) are kept constant, manual transmission car yields `14.08 - 4.14 * wt` higher MPG than automatic car of the same `wt` and `qsec`.
+Unfortunately, confidence intervals of these coefficients are quite wide, so we are not very certain of their values:
+```{r}
+confint(model.best)
+```  
+
+## Residual Analysis  
+Residual plots for the best model are given in Figure 3 from the Appendix.  
+1. The Residuals vs. Fitted plot shows no pattern, i.e. residuals and variable values are independent.  
+2. The points in Normal Q-Q plot lie closely to the line, i.e. residuals are normally distributed.  
+3. The Scale-Location line is roughly horizontal, i.e. variances and variable valuesis are independent.  
+4. All Residuals vs. Leverage points lie within the 0.5 bands, i.e. there are no suspiciour outliers.  
+
+## Appendix 
+Figure 1. MPG vs. transmission  
+```{r, fig.width = 2.5, fig.height = 4}
+boxplot(mpg ~ am, xlab = "Transmission (0 = automatic, 1 = manual)", ylab = "MPG",
+        main = "MPG vs. transmission")
+```  
+
+Figure 2. Pair plots of mtcars variables  
+```{r, fig.width = 7, fig.height = 7}
+pairs(mtcars, panel = panel.smooth, main = "Pair plots of mtcars variables")
+```  
+ 
+Figure 3. Residual Plots
+```{r, fig.width = 7, fig.height = 7}
+par(mfrow = c(2, 2))
+plot(model.best)
+```  
